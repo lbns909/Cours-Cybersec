@@ -1,0 +1,7 @@
+Bruteforce Attack Results
+Target: 192.168.45.63
+Date: Tue Apr  1 12:24:27 2025
+Username file: /Users/hadiabbas/Documents/GitHub/Cours-Cybersec/exo-1/TP01/username.txt
+Password file: /Users/hadiabbas/Documents/GitHub/Cours-Cybersec/exo-1/TP01/passwords.txt
+
+Port 80 (http): HTTP Basic Auth - bonlilo:lolilol
