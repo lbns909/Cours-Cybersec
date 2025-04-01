@@ -46,6 +46,38 @@ def grab_banner(host, port, results_file, open_ports, closed_ports):
         sock.close()  # S'assurer de fermer la connexion socket dans tous les cas
 
 
+# Fonction pour regrouper les ports fermés en plages
+def group_closed_ports(closed_ports):
+    grouped_ports = []
+    closed_ports.sort()  # Trier les ports fermés
+
+    # Regrouper les ports fermés consécutifs
+    start = None
+    end = None
+    for port in closed_ports:
+        if start is None:
+            start = port
+            end = port
+        elif port == end + 1:
+            end = port
+        else:
+            if start == end:
+                grouped_ports.append(f"{start} : fermé")
+            else:
+                grouped_ports.append(f"{start} à {end} : fermé")
+            start = port
+            end = port
+
+    # Ajouter le dernier groupe
+    if start is not None:
+        if start == end:
+            grouped_ports.append(f"{start} : fermé")
+        else:
+            grouped_ports.append(f"{start} à {end} : fermé")
+
+    return grouped_ports
+
+
 # Fonction pour scanner les ports dans la plage spécifiée
 def scan_ports(host, start_port, end_port, results_file):
     open_ports = []  # Liste des ports ouverts avec services
@@ -77,11 +109,12 @@ def scan_ports(host, start_port, end_port, results_file):
             results_file.write("  Aucun port ouvert détecté.\n")
 
     print("\n[+] Ports fermés :")
-    if closed_ports:
-        for port in closed_ports:
-            print(f"  Port {port} fermé.")
+    grouped_closed_ports = group_closed_ports(closed_ports)
+    if grouped_closed_ports:
+        for group in grouped_closed_ports:
+            print(f"  {group}")
             if results_file:
-                results_file.write(f"Port {port} fermé.\n")
+                results_file.write(f"  {group}\n")
     else:
         print("  Aucun port fermé détecté.")
         if results_file:

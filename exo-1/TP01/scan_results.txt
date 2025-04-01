@@ -1,0 +1,5 @@
+Port 22 ouvert – Service détecté : SSH - SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.11
+Port 80 ouvert – Service détecté : Inconnu - Aucune bannière reçue
+  1 à 21 : fermé
+  23 à 79 : fermé
+  81 à 100 : fermé
