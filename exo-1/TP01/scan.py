@@ -101,24 +101,20 @@ def scan_ports(host, start_port, end_port, results_file):
     if open_ports:
         for port, service, banner in open_ports:
             print(f"  Port {port} ouvert – Service détecté : {service} - {banner}")
-            if results_file:
-                results_file.write(f"Port {port} ouvert – Service détecté : {service} - {banner}\n")
+            results_file.write(f"Port {port} ouvert – Service détecté : {service} - {banner}\n")
     else:
         print("  Aucun port ouvert détecté.")
-        if results_file:
-            results_file.write("  Aucun port ouvert détecté.\n")
+        results_file.write("  Aucun port ouvert détecté.\n")
 
     print("\n[+] Ports fermés :")
     grouped_closed_ports = group_closed_ports(closed_ports)
     if grouped_closed_ports:
         for group in grouped_closed_ports:
             print(f"  {group}")
-            if results_file:
-                results_file.write(f"  {group}\n")
+            results_file.write(f"  {group}\n")
     else:
         print("  Aucun port fermé détecté.")
-        if results_file:
-            results_file.write("  Aucun port fermé détecté.\n")
+        results_file.write("  Aucun port fermé détecté.\n")
 
 
 # Programme principal
@@ -128,17 +124,9 @@ if __name__ == "__main__":
     start_port = int(input("Port de début : "))
     end_port = int(input("Port de fin : "))
 
-    # Demander si l'utilisateur souhaite sauvegarder les résultats
-    save_to_file = input("Voulez-vous sauvegarder les résultats dans un fichier (oui/non) ? ").lower()
+    # Ouvrir automatiquement le fichier pour écrire les résultats
+    with open("scan_results.txt", "w") as results_file:
+        # Lancer le scan
+        scan_ports(target, start_port, end_port, results_file)
 
-    # Ouvrir le fichier si nécessaire
-    results_file = None
-    if save_to_file == "oui":
-        results_file = open("scan_results.txt", "w")
-
-    # Lancer le scan
-    scan_ports(target, start_port, end_port, results_file)
-
-    # Fermer le fichier après le scan si il a été ouvert
-    if results_file:
-        results_file.close()
+    print("\nLes résultats ont été enregistrés dans 'scan_results.txt'.")
