@@ -12,31 +12,35 @@ def grab_banner(host, port, results_file):
         # Connexion au port
         result = sock.connect_ex((host, port))
         if result == 0:
-            # Si la connexion a réussi, essayer de récupérer la bannière
             banner = ""
             try:
                 # Recevoir des données du service (jusqu'à 1024 octets)
                 banner = sock.recv(1024).decode().strip()
             except Exception as e:
-                pass  # Si on ne reçoit pas de réponse, on ignore
+                banner = None  # Si la connexion échoue ou aucune donnée n'est reçue
 
             # Identification et affichage du service basé sur la bannière
             service = "Inconnu"
-            if "SSH" in banner:
-                service = "SSH"
-            elif "HTTP" in banner:
-                service = "HTTP"
-            elif "Apache" in banner:
-                service = "Serveur Web Apache"
-            elif "nginx" in banner:
-                service = "Serveur Web Nginx"
+            if banner:
+                if "SSH" in banner:
+                    service = "SSH"
+                elif "HTTP" in banner:
+                    service = "HTTP"
+                elif "Apache" in banner:
+                    service = "Serveur Web Apache"
+                elif "nginx" in banner:
+                    service = "Serveur Web Nginx"
 
-            # Affichage du port et du service détecté
-            print(f"[+] Port {port} ouvert – Service détecté : {service} - {banner}")
+                # Affichage du port et du service détecté
+                print(f"[+] Port {port} ouvert – Service détecté : {service} - {banner}")
 
-            # Sauvegarder les résultats dans un fichier
-            if results_file:
-                results_file.write(f"Port {port} ouvert – Service détecté : {service} - {banner}\n")
+                # Sauvegarder les résultats dans un fichier
+                if results_file:
+                    results_file.write(f"Port {port} ouvert – Service détecté : {service} - {banner}\n")
+            else:
+                print(f"Port {port} ouvert – Aucune bannière reçue.")
+                if results_file:
+                    results_file.write(f"Port {port} ouvert – Aucune bannière reçue.\n")
 
             # Envoi de requête HTTP si c'est un port 80 ou 443
             if port == 80 or port == 443:
@@ -49,10 +53,14 @@ def grab_banner(host, port, results_file):
                         results_file.write(f"    [*] Réponse HTTP : {response}\n")
                 except Exception as e:
                     pass  # Si on ne reçoit pas de réponse HTTP, on ignore
-
-        sock.close()
+        else:
+            print(f"Port {port} fermé ou injoignable.")
+    except socket.timeout:
+        print(f"Timeout lors de la connexion au port {port}")
     except Exception as e:
-        pass  # Ignorer les erreurs (par exemple, si la connexion échoue)
+        print(f"Erreur lors de la connexion au port {port}: {e}")
+    finally:
+        sock.close()  # S'assurer de fermer la connexion socket dans tous les cas
 
 
 # Fonction pour scanner les ports dans la plage spécifiée
