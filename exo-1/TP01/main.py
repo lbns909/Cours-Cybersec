@@ -3,7 +3,7 @@ import threading
 
 
 # Fonction pour récupérer la bannière du service
-def grab_banner(host, port, results_file):
+def grab_banner(host, port, results_file, open_ports, closed_ports):
     try:
         # Créer un objet socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,52 +31,61 @@ def grab_banner(host, port, results_file):
                 elif "nginx" in banner:
                     service = "Serveur Web Nginx"
 
-                # Affichage du port et du service détecté
-                print(f"[+] Port {port} ouvert – Service détecté : {service} - {banner}")
+                # Ajouter à la liste des ports ouverts
+                open_ports.append((port, service, banner))
 
-                # Sauvegarder les résultats dans un fichier
-                if results_file:
-                    results_file.write(f"Port {port} ouvert – Service détecté : {service} - {banner}\n")
             else:
-                print(f"Port {port} ouvert – Aucune bannière reçue.")
-                if results_file:
-                    results_file.write(f"Port {port} ouvert – Aucune bannière reçue.\n")
-
-            # Envoi de requête HTTP si c'est un port 80 ou 443
-            if port == 80 or port == 443:
-                try:
-                    request = "HEAD / HTTP/1.1\r\nHost: {}\r\n\r\n".format(host)
-                    sock.sendall(request.encode())
-                    response = sock.recv(1024).decode().strip()
-                    print(f"    [*] Réponse HTTP : {response}")
-                    if results_file:
-                        results_file.write(f"    [*] Réponse HTTP : {response}\n")
-                except Exception as e:
-                    pass  # Si on ne reçoit pas de réponse HTTP, on ignore
+                open_ports.append((port, "Inconnu", "Aucune bannière reçue"))
         else:
-            print(f"Port {port} fermé ou injoignable.")
+            closed_ports.append(port)  # Ajouter à la liste des ports fermés
     except socket.timeout:
-        print(f"Timeout lors de la connexion au port {port}")
+        closed_ports.append(port)  # Timeout -> Port fermé ou injoignable
     except Exception as e:
-        print(f"Erreur lors de la connexion au port {port}: {e}")
+        closed_ports.append(port)  # Autres erreurs -> Port fermé ou injoignable
     finally:
         sock.close()  # S'assurer de fermer la connexion socket dans tous les cas
 
 
 # Fonction pour scanner les ports dans la plage spécifiée
 def scan_ports(host, start_port, end_port, results_file):
+    open_ports = []  # Liste des ports ouverts avec services
+    closed_ports = []  # Liste des ports fermés
+
     print(f"\n[***] Scan de {host} sur les ports de {start_port} à {end_port} [***]\n")
     threads = []
 
     # Lancer un thread pour chaque port
     for port in range(start_port, end_port + 1):
-        t = threading.Thread(target=grab_banner, args=(host, port, results_file))
+        t = threading.Thread(target=grab_banner, args=(host, port, results_file, open_ports, closed_ports))
         threads.append(t)
         t.start()
 
     # Attendre que tous les threads se terminent
     for t in threads:
         t.join()
+
+    # Affichage des résultats
+    print("\n[+] Ports ouverts :")
+    if open_ports:
+        for port, service, banner in open_ports:
+            print(f"  Port {port} ouvert – Service détecté : {service} - {banner}")
+            if results_file:
+                results_file.write(f"Port {port} ouvert – Service détecté : {service} - {banner}\n")
+    else:
+        print("  Aucun port ouvert détecté.")
+        if results_file:
+            results_file.write("  Aucun port ouvert détecté.\n")
+
+    print("\n[+] Ports fermés :")
+    if closed_ports:
+        for port in closed_ports:
+            print(f"  Port {port} fermé.")
+            if results_file:
+                results_file.write(f"Port {port} fermé.\n")
+    else:
+        print("  Aucun port fermé détecté.")
+        if results_file:
+            results_file.write("  Aucun port fermé détecté.\n")
 
 
 # Programme principal
