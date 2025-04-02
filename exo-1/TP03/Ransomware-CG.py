@@ -1,7 +1,6 @@
 import os
 import logging
 from cryptography.fernet import Fernet
-import paramiko
 import sys
 import subprocess
 
