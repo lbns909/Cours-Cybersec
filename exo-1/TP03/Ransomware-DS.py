@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import time
+import paramiko
 from cryptography.fernet import Fernet
 
 # Configuration initiale
